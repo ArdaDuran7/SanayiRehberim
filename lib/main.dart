@@ -157,13 +157,51 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
   }
 }
 
-// --- 3. ANA EKRAN (GÜNCELLENMİŞ: ÇIKIŞ BUTONU EKLENDİ) ---
-class MagazaListesiEkrani extends StatelessWidget {
+// --- 3. ANA EKRAN (KATEGORİ FİLTRELİ) ---
+class MagazaListesiEkrani extends StatefulWidget {
   const MagazaListesiEkrani({super.key});
 
   @override
+  State<MagazaListesiEkrani> createState() => _MagazaListesiEkraniState();
+}
+
+class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
+  // Seçilen kategoriyi tutan değişken (Başlangıçta hepsi)
+  String secilenKategori = "Tümü";
+
+  // Sabit kategori listemiz (Bunları buton yapacağız)
+  final List<String> kategoriler = [
+    "Tümü",
+    "Kaporta",
+    "Motor",
+    "Elektrik",
+    "Lastik & Jant",
+    "Yedek Parça",
+    "Boya",
+    "Döşeme"
+  ];
+
+  // Demo veri ekleme fonksiyonu (Kategorilere uygun veriler)
+  Future<void> _demoVeriEkle() async {
+    final firestore = FirebaseFirestore.instance;
+    List<Map<String, dynamic>> ornekDukkanlar = [
+      {'isim': 'Yılmaz Oto Elektrik', 'kategori': 'Elektrik', 'adres': 'A Blok No:12', 'puan': 4.5},
+      {'isim': 'Şahin Motor Yenileme', 'kategori': 'Motor', 'adres': 'C Blok No:45', 'puan': 4.8},
+      {'isim': 'Demir Kaporta Boya', 'kategori': 'Kaporta', 'adres': 'B Blok No:22', 'puan': 3.9},
+      {'isim': 'Antalya Yedek Parça', 'kategori': 'Yedek Parça', 'adres': 'Giriş Kat No:1', 'puan': 5.0},
+      {'isim': 'Usta Rot Balans', 'kategori': 'Lastik & Jant', 'adres': 'D Blok No:8', 'puan': 4.2},
+      {'isim': 'Can Oto Boya', 'kategori': 'Boya', 'adres': 'F Blok No:5', 'puan': 4.7},
+      {'isim': 'Lüks Döşeme', 'kategori': 'Döşeme', 'adres': 'A Blok No:3', 'puan': 4.1},
+    ];
+
+    for (var dukkan in ornekDukkanlar) {
+      await firestore.collection('magazalar').add(dukkan);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kategorili Demo Veriler Eklendi!'), backgroundColor: Colors.green));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Giriş yapan kullanıcının e-postasını alalım
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
@@ -173,35 +211,85 @@ class MagazaListesiEkrani extends StatelessWidget {
         backgroundColor: Colors.blueGrey.shade800,
         foregroundColor: Colors.white,
         actions: [
-          // ÇIKIŞ YAP BUTONU
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              FirebaseAuth.instance.signOut(); // Çıkış yapınca otomatik giriş ekranına atar
-            },
+            onPressed: () => FirebaseAuth.instance.signOut(),
           )
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('magazalar').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Hata: ${snapshot.error}'));
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('Dükkan bulunamadı.'));
+      // Sağ alttaki buton (Veri yüklemek için)
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: _demoVeriEkle,
+        backgroundColor: Colors.orange,
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          // 1. KULLANICI BİLGİSİ
+          Container(
+            width: double.infinity,
+            color: Colors.amber.shade100,
+            padding: const EdgeInsets.all(8),
+            child: Text("Hoşgeldin: ${user?.email ?? 'Misafir'}", textAlign: TextAlign.center, style: TextStyle(color: Colors.blueGrey.shade900)),
+          ),
 
-          final dukkanlar = snapshot.data!.docs;
+          // 2. YATAY KATEGORİ LİSTESİ
+          Container(
+            height: 60,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal, // Yana doğru kaydırma
+              itemCount: kategoriler.length,
+              itemBuilder: (context, index) {
+                final kategori = kategoriler[index];
+                final seciliMi = secilenKategori == kategori;
 
-          return Column(
-            children: [
-              // Kullanıcı Bilgisi Çubuğu
-              Container(
-                width: double.infinity,
-                color: Colors.amber.shade100,
-                padding: const EdgeInsets.all(8),
-                child: Text("Hoşgeldin: ${user?.email ?? 'Misafir'}", textAlign: TextAlign.center, style: TextStyle(color: Colors.blueGrey.shade900)),
-              ),
-              Expanded(
-                child: ListView.builder(
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: ChoiceChip(
+                    label: Text(kategori),
+                    selected: seciliMi,
+                    selectedColor: Colors.blueGrey.shade800,
+                    labelStyle: TextStyle(color: seciliMi ? Colors.white : Colors.black),
+                    onSelected: (bool selected) {
+                      setState(() {
+                        secilenKategori = kategori; // Seçilen kategoriyi güncelle
+                      });
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // 3. FİLTRELENMİŞ DÜKKAN LİSTESİ
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              // SORGUSU: Eğer 'Tümü' ise hepsini getir, değilse sadece seçilen kategoriyi getir.
+              stream: secilenKategori == "Tümü"
+                  ? FirebaseFirestore.instance.collection('magazalar').snapshots()
+                  : FirebaseFirestore.instance.collection('magazalar').where('kategori', isEqualTo: secilenKategori).snapshots(),
+
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return Center(child: Text('Hata: ${snapshot.error}'));
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 60, color: Colors.grey.shade400),
+                        const SizedBox(height: 10),
+                        Text('Bu kategoride dükkan bulunamadı.', style: TextStyle(color: Colors.grey.shade600)),
+                      ],
+                    ),
+                  );
+                }
+
+                final dukkanlar = snapshot.data!.docs;
+
+                return ListView.builder(
                   itemCount: dukkanlar.length,
                   padding: const EdgeInsets.all(10),
                   itemBuilder: (context, index) {
@@ -213,24 +301,32 @@ class MagazaListesiEkrani extends StatelessWidget {
                     double puan = (veri['puan'] ?? 0).toDouble();
 
                     return Card(
-                      elevation: 4,
+                      elevation: 3,
                       margin: const EdgeInsets.symmetric(vertical: 8),
                       child: ListTile(
-                        leading: CircleAvatar(backgroundColor: Colors.blueGrey.shade100, child: Icon(Icons.build, color: Colors.blueGrey.shade700)),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blueGrey.shade100,
+                          // Kategoriye göre farklı ikon göstermek istersen burayı geliştirebiliriz
+                          child: const Icon(Icons.store, color: Colors.black54),
+                        ),
                         title: Text(isim, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('$kategori - Puan: $puan'),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        subtitle: Text(kategori),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)),
+                          child: Text("★ $puan", style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                        ),
                         onTap: () {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => DukkanDetayEkrani(docId: docId, isim: isim, kategori: kategori, adres: adres, puan: puan)));
                         },
                       ),
                     );
                   },
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
