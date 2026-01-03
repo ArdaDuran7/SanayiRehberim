@@ -115,7 +115,7 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
   }
 }
 
-// --- 3. ANA EKRAN ---
+// --- 3. ANA EKRAN (BUTONSUZ) ---
 class MagazaListesiEkrani extends StatefulWidget {
   const MagazaListesiEkrani({super.key});
   @override
@@ -128,18 +128,27 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
   final TextEditingController _searchController = TextEditingController();
   final List<String> kategoriler = ["Tümü", "Kaporta", "Motor", "Elektrik", "Lastik & Jant", "Yedek Parça", "Boya", "Döşeme"];
 
-  Future<void> _demoVeriEkle() async {
-    final firestore = FirebaseFirestore.instance;
-    List<Map<String, dynamic>> ornekDukkanlar = [
-      {'isim': 'Yılmaz Oto Elektrik', 'kategori': 'Elektrik', 'adres': 'A Blok No:12', 'puan': 0.0},
-      {'isim': 'Şahin Motor Yenileme', 'kategori': 'Motor', 'adres': 'C Blok No:45', 'puan': 0.0},
-      {'isim': 'Demir Kaporta Boya', 'kategori': 'Kaporta', 'adres': 'B Blok No:22', 'puan': 0.0},
-      {'isim': 'Can Oto Boya', 'kategori': 'Boya', 'adres': 'F Blok No:5', 'puan': 0.0},
-    ];
-    for (var dukkan in ornekDukkanlar) {
-      await firestore.collection('magazalar').add(dukkan);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demo Veriler Eklendi!'), backgroundColor: Colors.green));
+  // --- SİLME FONKSİYONU ---
+  void _dukkanSil(String docId, String dukkanIsmi) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Dükkanı Sil"),
+        content: Text("$dukkanIsmi kalıcı olarak silinsin mi?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("İptal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              await FirebaseFirestore.instance.collection('magazalar').doc(docId).delete();
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dükkan silindi!"), backgroundColor: Colors.red));
+            },
+            child: const Text("SİL"),
+          )
+        ],
+      ),
+    );
   }
 
   @override
@@ -173,7 +182,7 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
                     onTap: () {
                       Navigator.pop(context);
                       if (userData['dukkanId'] != null) {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => DukkanYonetimPaneli(dukkanId: userData['dukkanId'], dukkanIsmi: "Dükkanım")));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => DukkanYonetimPaneli(dukkanId: userData['dukkanId'])));
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dükkan atanmamış!")));
                       }
@@ -187,7 +196,7 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.small(onPressed: _demoVeriEkle, backgroundColor: Colors.orange, child: const Icon(Icons.add)),
+      // FLOATING ACTION BUTTON BURADAN KALDIRILDI
       body: Column(
         children: [
           Container(
@@ -228,18 +237,33 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
                     var data = filtered[index].data() as Map<String, dynamic>;
                     double puan = (data['puan'] ?? 0).toDouble();
                     String puanYazisi = puan == 0 ? "Yeni" : puan.toStringAsFixed(1);
+                    String resimUrl = data['resimUrl'] ?? '';
 
                     return Card(
                       elevation: 3, margin: const EdgeInsets.symmetric(vertical: 8),
                       child: ListTile(
-                        leading: CircleAvatar(child: Text(data['isim'][0])),
-                        title: Text(data['isim']), subtitle: Text(data['kategori']),
+                        leading: Container(
+                          width: 60, height: 60,
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.grey.shade200,
+                              image: resimUrl.isNotEmpty
+                                  ? DecorationImage(image: NetworkImage(resimUrl), fit: BoxFit.cover)
+                                  : null
+                          ),
+                          child: resimUrl.isEmpty ? const Icon(Icons.store, color: Colors.grey) : null,
+                        ),
+                        title: Text(data['isim'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(data['kategori']),
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)),
                           child: Text("★ $puanYazisi", style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
                         ),
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => DukkanDetayEkrani(docId: filtered[index].id, isim: data['isim'], kategori: data['kategori'], adres: data['adres'], puan: puan))),
+                        // --- TEK TIKLAMA: DETAY GİT ---
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => DukkanDetayEkrani(docId: filtered[index].id, isim: data['isim'], kategori: data['kategori'], adres: data['adres'], puan: puan, resimUrl: resimUrl))),
+                        // --- UZUN BASMA: SİLME İŞLEMİ ---
+                        onLongPress: () => _dukkanSil(filtered[index].id, data['isim']),
                       ),
                     );
                   },
@@ -294,8 +318,9 @@ class _ProfilAyarlariEkraniState extends State<ProfilAyarlariEkrani> {
 // --- 5. DETAY EKRANI ---
 class DukkanDetayEkrani extends StatefulWidget {
   final String docId, isim, kategori, adres;
+  final String resimUrl;
   final double puan;
-  const DukkanDetayEkrani({super.key, required this.docId, required this.isim, required this.kategori, required this.adres, required this.puan});
+  const DukkanDetayEkrani({super.key, required this.docId, required this.isim, required this.kategori, required this.adres, required this.puan, required this.resimUrl});
   @override
   State<DukkanDetayEkrani> createState() => _DukkanDetayEkraniState();
 }
@@ -322,13 +347,19 @@ class _DukkanDetayEkraniState extends State<DukkanDetayEkrani> {
         appBar: AppBar(title: Text(widget.isim), bottom: const TabBar(tabs: [Tab(text: "Bilgiler & Randevu"), Tab(text: "Yorumlar")])),
         body: TabBarView(
           children: [
-            SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-              const Icon(Icons.store, size: 80, color: Colors.blueGrey), const SizedBox(height: 20),
-              Text(widget.isim, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), Text(widget.adres), const Divider(height: 30),
-              const Text("Randevu Al", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 10),
-              Row(children: [ Expanded(child: OutlinedButton(onPressed: () async { final t = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30))); if(t!=null) setState(()=>secilenTarih=t); }, child: Text(secilenTarih?.toString().split(' ')[0] ?? "Tarih Seç"))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: () async { final s = await showTimePicker(context: context, initialTime: TimeOfDay.now()); if(s!=null) setState(()=>secilenSaat=s); }, child: Text(secilenSaat?.format(context) ?? "Saat Seç"))) ]),
-              const SizedBox(height: 20), SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade900, foregroundColor: Colors.white), onPressed: isSaving ? null : _randevuOlustur, child: isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("RANDEVUYU ONAYLA")))
-            ]))),
+            SingleChildScrollView(child: Column(children: [
+              Container(
+                height: 200, width: double.infinity,
+                decoration: BoxDecoration(color: Colors.blueGrey.shade200, image: widget.resimUrl.isNotEmpty ? DecorationImage(image: NetworkImage(widget.resimUrl), fit: BoxFit.cover) : null),
+                child: widget.resimUrl.isEmpty ? const Icon(Icons.store, size: 80, color: Colors.white) : null,
+              ),
+              Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+                Text(widget.isim, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), Text(widget.adres), const Divider(height: 30),
+                const Text("Randevu Al", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 10),
+                Row(children: [ Expanded(child: OutlinedButton(onPressed: () async { final t = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30))); if(t!=null) setState(()=>secilenTarih=t); }, child: Text(secilenTarih?.toString().split(' ')[0] ?? "Tarih Seç"))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: () async { final s = await showTimePicker(context: context, initialTime: TimeOfDay.now()); if(s!=null) setState(()=>secilenSaat=s); }, child: Text(secilenSaat?.format(context) ?? "Saat Seç"))) ]),
+                const SizedBox(height: 20), SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade900, foregroundColor: Colors.white), onPressed: isSaving ? null : _randevuOlustur, child: isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("RANDEVUYU ONAYLA")))
+              ])),
+            ])),
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('yorumlar').where('dukkanId', isEqualTo: widget.docId).snapshots(),
               builder: (context, snapshot) {
@@ -349,7 +380,7 @@ class _DukkanDetayEkraniState extends State<DukkanDetayEkrani> {
   }
 }
 
-// --- 6. RANDEVULARIM EKRANI (DÜZELTİLDİ: StatefulBuilder İLE PUAN SEÇİMİ) ---
+// --- 6. RANDEVULARIM EKRANI ---
 class RandevularimEkrani extends StatelessWidget {
   const RandevularimEkrani({super.key});
 
@@ -367,15 +398,7 @@ class RandevularimEkrani extends StatelessWidget {
                 TextField(controller: yorumController, decoration: const InputDecoration(labelText: "Yorumunuz")),
                 const SizedBox(height: 10),
                 const Text("Puanınız (1-5):"),
-                DropdownButton<double>(
-                    value: puan,
-                    items: [1,2,3,4,5].map((e) => DropdownMenuItem(value: e.toDouble(), child: Text(e.toString()))).toList(),
-                    onChanged: (v) {
-                      setState(() { // EKRANI YENİLEYEN SİHİRLİ KOD
-                        puan = v!;
-                      });
-                    }
-                )
+                DropdownButton<double>(value: puan, items: [1,2,3,4,5].map((e) => DropdownMenuItem(value: e.toDouble(), child: Text(e.toString()))).toList(), onChanged: (v) { setState(() { puan = v!; }); })
               ]),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("İptal")),
@@ -383,7 +406,6 @@ class RandevularimEkrani extends StatelessWidget {
                   final user = FirebaseAuth.instance.currentUser;
                   if (dukkanId.isEmpty) return;
                   await FirebaseFirestore.instance.collection('yorumlar').add({ 'dukkanId': dukkanId, 'userId': user!.uid, 'userAdSoyad': user.email, 'yorum': yorumController.text, 'puan': puan, 'tarih': FieldValue.serverTimestamp() });
-
                   try {
                     var yorumlarSnapshot = await FirebaseFirestore.instance.collection('yorumlar').where('dukkanId', isEqualTo: dukkanId).get();
                     if (yorumlarSnapshot.docs.isNotEmpty) {
@@ -393,7 +415,6 @@ class RandevularimEkrani extends StatelessWidget {
                       await FirebaseFirestore.instance.collection('magazalar').doc(dukkanId).update({'puan': yeniOrtalama});
                     }
                   } catch (e) { debugPrint("Hata: $e"); }
-
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Yorumunuz eklendi!")));
                 }, child: const Text("GÖNDER"))
@@ -444,50 +465,131 @@ class RandevularimEkrani extends StatelessWidget {
 
 // --- 7. DÜKKAN YÖNETİM PANELİ ---
 class DukkanYonetimPaneli extends StatelessWidget {
-  final String dukkanId; final String dukkanIsmi;
-  const DukkanYonetimPaneli({super.key, required this.dukkanId, required this.dukkanIsmi});
-  void _durumGuncelle(String docId, String yeniDurum) { FirebaseFirestore.instance.collection('randevular').doc(docId).update({'durum': yeniDurum}); }
+  final String dukkanId;
+
+  const DukkanYonetimPaneli({super.key, required this.dukkanId});
+
+  void _durumGuncelle(String docId, String yeniDurum) {
+    FirebaseFirestore.instance.collection('randevular').doc(docId).update({'durum': yeniDurum});
+  }
+
+  void _dukkanDuzenleDialog(BuildContext context, String mevcutIsim, String mevcutAdres, String mevcutKategori, String mevcutResimUrl) {
+    final isimController = TextEditingController(text: mevcutIsim);
+    final adresController = TextEditingController(text: mevcutAdres);
+    final resimController = TextEditingController(text: mevcutResimUrl);
+    String kategori = mevcutKategori;
+    final List<String> kategoriler = ["Kaporta", "Motor", "Elektrik", "Lastik & Jant", "Yedek Parça", "Boya", "Döşeme"];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Dükkan Bilgilerini Düzenle"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: isimController, decoration: const InputDecoration(labelText: "Dükkan İsmi")),
+                    const SizedBox(height: 10),
+                    TextField(controller: adresController, decoration: const InputDecoration(labelText: "Adres")),
+                    const SizedBox(height: 10),
+                    TextField(controller: resimController, decoration: const InputDecoration(labelText: "Resim Linki (URL)", hintText: "https://...")),
+                    const SizedBox(height: 10),
+                    const Text("Kategori:"),
+                    DropdownButton<String>(
+                        value: kategoriler.contains(kategori) ? kategori : kategoriler[0],
+                        isExpanded: true,
+                        items: kategoriler.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                        onChanged: (v) { setState(() { kategori = v!; }); }
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("İptal")),
+                ElevatedButton(onPressed: () async {
+                  await FirebaseFirestore.instance.collection('magazalar').doc(dukkanId).update({
+                    'isim': isimController.text.trim(),
+                    'adres': adresController.text.trim(),
+                    'resimUrl': resimController.text.trim(),
+                    'kategori': kategori
+                  });
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bilgiler güncellendi!")));
+                }, child: const Text("KAYDET"))
+              ],
+            );
+          }
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("$dukkanIsmi Yönetimi"), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-      body: Column(
-        children: [
-          Container(padding: const EdgeInsets.all(15), color: Colors.indigo.shade50, width: double.infinity, child: const Text("Randevu İşlemleri", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo), textAlign: TextAlign.center)),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('randevular').where('dukkanId', isEqualTo: dukkanId).snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Randevu yok."));
-                return ListView.builder(
-                  padding: const EdgeInsets.all(10), itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var doc = snapshot.data!.docs[index];
-                    var veri = doc.data() as Map<String, dynamic>;
-                    String durum = veri['durum'] ?? 'bekliyor';
-                    return Card(
-                      child: Padding(padding: const EdgeInsets.all(12.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text("${veri['userAdSoyad']} - ${veri['userTelefon']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text("${veri['tarih']} Saat: ${veri['saat']}"),
-                        Text("Şu anki durum: $durum", style: const TextStyle(color: Colors.grey)), const Divider(),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                          if (durum == 'bekliyor') ...[ ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green), onPressed: () => _durumGuncelle(doc.id, 'onaylandi'), child: const Text("ONAYLA", style: TextStyle(color: Colors.white))), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => _durumGuncelle(doc.id, 'reddedildi'), child: const Text("REDDET", style: TextStyle(color: Colors.white))), ],
-                          if (durum == 'onaylandi') ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey), onPressed: () => _durumGuncelle(doc.id, 'tamamlandi'), icon: const Icon(Icons.check_circle, color: Colors.white), label: const Text("İŞİ TAMAMLA", style: TextStyle(color: Colors.white))),
-                          if (durum == 'tamamlandi') const Text("✅ İŞLEM BİTTİ", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                          if (durum == 'reddedildi') const Text("❌ REDDEDİLDİ", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                        ],
-                        )
-                      ],
-                      ),
-                      ),
-                    );
-                  },
-                );
-              },
+    return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('magazalar').doc(dukkanId).snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+          var dukkanVerisi = snapshot.data!.data() as Map<String, dynamic>;
+          String dukkanIsmi = dukkanVerisi['isim'] ?? 'Dükkanım';
+          String dukkanAdres = dukkanVerisi['adres'] ?? '';
+          String dukkanKategori = dukkanVerisi['kategori'] ?? 'Genel';
+          String resimUrl = dukkanVerisi['resimUrl'] ?? '';
+
+          return Scaffold(
+            appBar: AppBar(
+              title: Text("$dukkanIsmi Paneli"),
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  tooltip: "Dükkanı Düzenle",
+                  onPressed: () => _dukkanDuzenleDialog(context, dukkanIsmi, dukkanAdres, dukkanKategori, resimUrl),
+                )
+              ],
             ),
-          ),
-        ],
-      ),
+            body: Column(
+              children: [
+                Container(padding: const EdgeInsets.all(15), color: Colors.indigo.shade50, width: double.infinity, child: const Text("Randevu İşlemleri", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo), textAlign: TextAlign.center)),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('randevular').where('dukkanId', isEqualTo: dukkanId).snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Randevu yok."));
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(10), itemCount: snapshot.data!.docs.length,
+                        itemBuilder: (context, index) {
+                          var doc = snapshot.data!.docs[index];
+                          var veri = doc.data() as Map<String, dynamic>;
+                          String durum = veri['durum'] ?? 'bekliyor';
+                          return Card(
+                            child: Padding(padding: const EdgeInsets.all(12.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text("${veri['userAdSoyad']} - ${veri['userTelefon']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("${veri['tarih']} Saat: ${veri['saat']}"),
+                              Text("Şu anki durum: $durum", style: const TextStyle(color: Colors.grey)), const Divider(),
+                              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                                if (durum == 'bekliyor') ...[ ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green), onPressed: () => _durumGuncelle(doc.id, 'onaylandi'), child: const Text("ONAYLA", style: TextStyle(color: Colors.white))), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => _durumGuncelle(doc.id, 'reddedildi'), child: const Text("REDDET", style: TextStyle(color: Colors.white))), ],
+                                if (durum == 'onaylandi') ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey), onPressed: () => _durumGuncelle(doc.id, 'tamamlandi'), icon: const Icon(Icons.check_circle, color: Colors.white), label: const Text("İŞİ TAMAMLA", style: TextStyle(color: Colors.white))),
+                                if (durum == 'tamamlandi') const Text("✅ İŞLEM BİTTİ", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                                if (durum == 'reddedildi') const Text("❌ REDDEDİLDİ", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                              ],
+                              )
+                            ],
+                            ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
     );
   }
 }
