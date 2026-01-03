@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// --- 1. UYGULAMA BAŞLANGICI ---
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -33,7 +32,7 @@ class SanayiRehberimApp extends StatelessWidget {
   }
 }
 
-// --- 2. KAPICI (GİRİŞ KONTROLÜ) ---
+// --- 1. KAPICI ---
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -42,19 +41,16 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return const MagazaListesiEkrani();
-        }
+        if (snapshot.hasData) return const MagazaListesiEkrani();
         return const GirisKayitEkrani();
       },
     );
   }
 }
 
-// --- 3. GİRİŞ VE KAYIT EKRANI ---
+// --- 2. GİRİŞ VE KAYIT ---
 class GirisKayitEkrani extends StatefulWidget {
   const GirisKayitEkrani({super.key});
-
   @override
   State<GirisKayitEkrani> createState() => _GirisKayitEkraniState();
 }
@@ -94,7 +90,6 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.car_repair, size: 80, color: Colors.blueGrey.shade800),
               const SizedBox(height: 10),
@@ -104,20 +99,9 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
               const SizedBox(height: 15),
               TextField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Şifre', prefixIcon: Icon(Icons.lock)), obscureText: true),
               const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white),
-                  onPressed: isLoading ? null : _islemYap,
-                  child: isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(girisModu ? 'GİRİŞ YAP' : 'KAYIT OL', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
+              SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white), onPressed: isLoading ? null : _islemYap, child: isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(girisModu ? 'GİRİŞ YAP' : 'KAYIT OL', style: const TextStyle(fontWeight: FontWeight.bold)))),
               const SizedBox(height: 10),
-              TextButton(
-                onPressed: () => setState(() => girisModu = !girisModu),
-                child: Text(girisModu ? 'Hesabın yok mu? Kayıt Ol' : 'Zaten hesabın var mı? Giriş Yap'),
-              )
+              TextButton(onPressed: () => setState(() => girisModu = !girisModu), child: Text(girisModu ? 'Hesabın yok mu? Kayıt Ol' : 'Zaten hesabın var mı? Giriş Yap'))
             ],
           ),
         ),
@@ -126,10 +110,9 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
   }
 }
 
-// --- 4. ANA EKRAN (LİSTELEME) ---
+// --- 3. ANA EKRAN ---
 class MagazaListesiEkrani extends StatefulWidget {
   const MagazaListesiEkrani({super.key});
-
   @override
   State<MagazaListesiEkrani> createState() => _MagazaListesiEkraniState();
 }
@@ -160,8 +143,6 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sanayi Rehberim'), centerTitle: true, backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white),
-
-      // --- YAN MENÜ (GÜNCELLENDİ) ---
       drawer: Drawer(
         child: Column(
           children: [
@@ -172,14 +153,15 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
               currentAccountPicture: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.person, size: 40, color: Colors.blueGrey)),
             ),
             ListTile(leading: const Icon(Icons.home), title: const Text('Ana Sayfa'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.calendar_month), title: const Text('Randevularım'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => const RandevularimEkrani())); }),
 
-            // --- RANDEVULARIM BUTONU (YENİ EKRANA GİDER) ---
+            // --- YENİ EKLENEN BUTON: PROFİL AYARLARI ---
             ListTile(
-              leading: const Icon(Icons.calendar_month),
-              title: const Text('Randevularım'),
+              leading: const Icon(Icons.settings),
+              title: const Text('Profil Ayarları'),
               onTap: () {
-                Navigator.pop(context); // Menüyü kapat
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const RandevularimEkrani())); // Yeni sayfaya git
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilAyarlariEkrani()));
               },
             ),
 
@@ -227,9 +209,7 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
                   var data = doc.data() as Map<String, dynamic>;
                   return (data['isim'] ?? '').toString().toLowerCase().contains(aramaMetni);
                 }).toList();
-
                 if (filtered.isEmpty) return const Center(child: Text('Bulunamadı.'));
-
                 return ListView.builder(
                   itemCount: filtered.length, padding: const EdgeInsets.all(10),
                   itemBuilder: (context, index) {
@@ -254,7 +234,101 @@ class _MagazaListesiEkraniState extends State<MagazaListesiEkrani> {
   }
 }
 
-// --- 5. DETAY EKRANI ---
+// --- 4. PROFİL AYARLARI EKRANI (YENİ) ---
+class ProfilAyarlariEkrani extends StatefulWidget {
+  const ProfilAyarlariEkrani({super.key});
+
+  @override
+  State<ProfilAyarlariEkrani> createState() => _ProfilAyarlariEkraniState();
+}
+
+class _ProfilAyarlariEkraniState extends State<ProfilAyarlariEkrani> {
+  final _adController = TextEditingController();
+  final _telController = TextEditingController();
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verileriGetir();
+  }
+
+  // Mevcut verileri çek
+  Future<void> _verileriGetir() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        setState(() {
+          _adController.text = doc.data()?['adSoyad'] ?? '';
+          _telController.text = doc.data()?['telefon'] ?? '';
+        });
+      }
+    }
+  }
+
+  // Verileri kaydet
+  Future<void> _kaydet() async {
+    setState(() => isLoading = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'adSoyad': _adController.text.trim(),
+          'telefon': _telController.text.trim(),
+          'email': user.email,
+        }, SetOptions(merge: true));
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil Güncellendi!'), backgroundColor: Colors.green));
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Hata: $e')));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Profil Ayarları")),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            const Icon(Icons.account_circle, size: 100, color: Colors.blueGrey),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _adController,
+              decoration: const InputDecoration(labelText: "Ad Soyad", prefixIcon: Icon(Icons.person)),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _telController,
+              decoration: const InputDecoration(labelText: "Telefon Numarası", prefixIcon: Icon(Icons.phone), hintText: "05XX XXX XX XX"),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white),
+                onPressed: isLoading ? null : _kaydet,
+                child: isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("KAYDET"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- 5. DETAY EKRANI (TELEFON BİLGİSİNİ ALIP KAYDEDER) ---
 class DukkanDetayEkrani extends StatefulWidget {
   final String docId, isim, kategori, adres;
   final double puan;
@@ -277,9 +351,29 @@ class _DukkanDetayEkraniState extends State<DukkanDetayEkrani> {
     setState(() => isSaving = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
+
+      // ÖNCE PROFİL BİLGİLERİNİ ÇEKİYORUZ
+      String musteriAd = "Belirtilmemiş";
+      String musteriTel = "Belirtilmemiş";
+
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          musteriAd = userDoc.data()?['adSoyad'] ?? "Belirtilmemiş";
+          musteriTel = userDoc.data()?['telefon'] ?? "Belirtilmemiş";
+        }
+      }
+
       await FirebaseFirestore.instance.collection('randevular').add({
-        'dukkanId': widget.docId, 'dukkanIsim': widget.isim, 'userId': user?.uid, 'userEmail': user?.email,
-        'tarih': secilenTarih.toString().split(' ')[0], 'saat': secilenSaat!.format(context), 'olusturulmaZamani': FieldValue.serverTimestamp(),
+        'dukkanId': widget.docId,
+        'dukkanIsim': widget.isim,
+        'userId': user?.uid,
+        'userEmail': user?.email,
+        'userAdSoyad': musteriAd,   // <-- ARTIK ADINI KAYDEDİYORUZ
+        'userTelefon': musteriTel,  // <-- ARTIK TELEFONUNU KAYDEDİYORUZ
+        'tarih': secilenTarih.toString().split(' ')[0],
+        'saat': secilenSaat!.format(context),
+        'olusturulmaZamani': FieldValue.serverTimestamp(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Randevu alındı!'), backgroundColor: Colors.green));
@@ -325,95 +419,35 @@ class _DukkanDetayEkraniState extends State<DukkanDetayEkrani> {
   }
 }
 
-// --- 6. YENİ EKLENEN: RANDEVULARIM EKRANI ---
+// --- 6. RANDEVULARIM EKRANI ---
 class RandevularimEkrani extends StatelessWidget {
   const RandevularimEkrani({super.key});
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Randevularım"),
-        backgroundColor: Colors.blueGrey.shade800,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text("Randevularım"), backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white),
       body: StreamBuilder<QuerySnapshot>(
-        // SADECE GİRİŞ YAPAN KULLANICININ RANDEVULARINI GETİR
-        stream: FirebaseFirestore.instance
-            .collection('randevular')
-            .where('userId', isEqualTo: user?.uid) // <-- Filtre burada!
-            .snapshots(),
+        stream: FirebaseFirestore.instance.collection('randevular').where('userId', isEqualTo: user?.uid).snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text("Bir hata oluştu"));
+          if (snapshot.hasError) return const Center(child: Text("Hata"));
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
           final randevular = snapshot.data!.docs;
-
-          if (randevular.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey.shade400),
-                  const SizedBox(height: 20),
-                  const Text("Henüz randevunuz yok.", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                ],
-              ),
-            );
-          }
+          if (randevular.isEmpty) return const Center(child: Text("Randevu yok."));
 
           return ListView.builder(
             itemCount: randevular.length,
             padding: const EdgeInsets.all(12),
             itemBuilder: (context, index) {
               var veri = randevular[index].data() as Map<String, dynamic>;
-              var docId = randevular[index].id;
-
               return Card(
-                elevation: 3,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 3, margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(12),
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.orange.shade100,
-                    child: const Icon(Icons.access_time, color: Colors.orange),
-                  ),
-                  title: Text(veri['dukkanIsim'] ?? 'Bilinmeyen Dükkan', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 5),
-                      Row(children: [const Icon(Icons.calendar_today, size: 14), const SizedBox(width: 5), Text(veri['tarih'] ?? '?')]),
-                      Row(children: [const Icon(Icons.schedule, size: 14), const SizedBox(width: 5), Text(veri['saat'] ?? '?')]),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () {
-                      // Randevuyu Silme İşlemi
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text("İptal Et"),
-                          content: const Text("Bu randevuyu iptal etmek istediğine emin misin?"),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Hayır")),
-                            TextButton(
-                              onPressed: () {
-                                FirebaseFirestore.instance.collection('randevular').doc(docId).delete();
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Randevu iptal edildi.")));
-                              },
-                              child: const Text("Evet, İptal Et", style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                  leading: const Icon(Icons.access_time, color: Colors.orange),
+                  title: Text(veri['dukkanIsim'] ?? '?'),
+                  subtitle: Text("${veri['tarih']} - ${veri['saat']}"),
+                  trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => FirebaseFirestore.instance.collection('randevular').doc(randevular[index].id).delete()),
                 ),
               );
             },
