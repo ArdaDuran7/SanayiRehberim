@@ -11,8 +11,5 @@ Araç sahiplerini sanayi ustalarıyla buluşturan Flutter mobil uygulaması.
 * **Karanlık Mod:** Otomatik sistem teması algılama.
 * **Harita:** Google Maps entegrasyonu ile yol tarifi.
 
-## 📸 Ekran Görüntüleri
-(Buraya uygulamanın çalıştığına dair 1-2 ekran görüntüsü sürükleyip bırakabilirsin)
-
 ## 👨‍💻 Hazırlayan
-Arda Duran
+Arda Duran-240053017
