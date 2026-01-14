@@ -39,6 +39,8 @@ dependencies:
   firebase_auth: ^5.7.0
   firecore: ^0.0.1
   url_launcher: ^6.3.2
+  google_fonts: ^6.1.0
+  image_picker: ^1.0.7       # Galeriden resim seçmek için
 
 dev_dependencies:
   flutter_test:
