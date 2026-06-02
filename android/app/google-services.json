@@ -12,7 +12,20 @@
           "package_name": "com.example.sanayirehberim"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1013497024846-jmatq7a5uv8mfa6clvl6c6ap20s8vcm0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sanayirehberim",
+            "certificate_hash": "7d2c372122fd583089b63e0f840df047a136ea89"
+          }
+        },
+        {
+          "client_id": "1013497024846-1575ubtrh549f45edl9evoc6v98a8sju.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDNhOQgAR-fILnWaBDAxgrcIG_5_Enk-zM"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1013497024846-1575ubtrh549f45edl9evoc6v98a8sju.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1013497024846-50vkqo23v49v8dpnq755ce7j0pdb9ndb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sanayirehberim"
+              }
+            }
+          ]
         }
       }
     }

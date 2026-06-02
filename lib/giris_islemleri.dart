@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart' as g_sign; // Hataları önleyen takma isim
 import 'uygulama_ici.dart';
 
 // --- 1. KAPICI (AUTH GATE & MODERN SPLASH) ---
@@ -17,7 +18,6 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    // 3 Saniye bekleme süresi
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
@@ -29,7 +29,6 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    // --- MODERN AÇILIŞ EKRANI TASARIMI ---
     if (_splashGosteriliyor) {
       return Scaffold(
         body: Container(
@@ -69,7 +68,6 @@ class _AuthGateState extends State<AuthGate> {
       );
     }
 
-    // Normal Akış
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -98,16 +96,61 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
   final _telController = TextEditingController();
   bool isLoading = false;
 
+  // --- SOSYAL KULLANICIYI VERİTABANINA KAYDET ---
+  Future<void> _sosyalKullaniciyiVeritabaninaKaydet(User user) async {
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'email': user.email ?? "",
+        'rol': 'musteri',
+        'adSoyad': user.displayName ?? "İsimsiz Kullanıcı",
+        'telefon': user.phoneNumber ?? "",
+        'favoriler': [],
+        'profilResmi': user.photoURL,
+      });
+    }
+  }
+
+  // --- GOOGLE İLE GİRİŞ YAP ---
+  Future<void> _googleIleGirisYap() async {
+    setState(() => isLoading = true);
+    try {
+      final g_sign.GoogleSignIn googleSignIn = g_sign.GoogleSignIn();
+      final g_sign.GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final g_sign.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        await _sosyalKullaniciyiVeritabaninaKaydet(userCredential.user!);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Google Giriş Hatası: $e")));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // --- NORMAL E-POSTA İŞLEMLERİ ---
   Future<void> _islemYap() async {
     FocusScope.of(context).unfocus();
 
-    // 1. Boş Alan Kontrolü
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen E-Posta ve Şifre giriniz."), backgroundColor: Colors.orange));
       return;
     }
 
-    // 2. Kayıt Modu Kontrolleri
     if (!girisModu) {
       if (_adController.text.isEmpty || _telController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen Ad Soyad ve Telefon bilgilerini giriniz."), backgroundColor: Colors.orange));
@@ -117,22 +160,16 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Şifreler uyuşmuyor! Lütfen kontrol edin."), backgroundColor: Colors.red));
         return;
       }
-      if (_passwordController.text.length < 6) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Şifre en az 6 karakter olmalıdır."), backgroundColor: Colors.orange));
-        return;
-      }
     }
 
     setState(() => isLoading = true);
     try {
       if (girisModu) {
-        // --- GİRİŞ YAP ---
         await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
       } else {
-        // --- KAYIT OL ---
         UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
@@ -147,52 +184,12 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
           'profilResmi': null,
         });
 
-        // --- İŞTE EKLENEN KISIM: KAYIT BAŞARILI MESAJI ---
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Hesabınız başarıyla oluşturuldu! Giriş yapılıyor..."),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kayıt Başarılı!"), backgroundColor: Colors.green));
         }
-        // ------------------------------------------------
       }
     } on FirebaseAuthException catch (e) {
-      // --- ÖZEL HATA MESAJLARI (TÜRKÇE) ---
-      String mesaj = "Bir hata oluştu. Lütfen tekrar deneyin.";
-
-      switch (e.code) {
-        case 'user-not-found':
-          mesaj = "Böyle bir kullanıcı bulunamadı! Lütfen kayıt olun.";
-          break;
-        case 'wrong-password':
-          mesaj = "Girdiğiniz şifre hatalı! Lütfen tekrar deneyin.";
-          break;
-        case 'invalid-email':
-          mesaj = "Lütfen geçerli bir e-posta adresi girin.";
-          break;
-        case 'user-disabled':
-          mesaj = "Bu hesap erişime kapatılmış.";
-          break;
-        case 'email-already-in-use':
-          mesaj = "Bu e-posta adresi zaten kullanımda. Giriş yapmayı deneyin.";
-          break;
-        case 'weak-password':
-          mesaj = "Belirlediğiniz şifre çok zayıf.";
-          break;
-        case 'invalid-credential':
-          mesaj = "E-posta veya şifre hatalı.";
-          break;
-        case 'network-request-failed':
-          mesaj = "İnternet bağlantınızı kontrol edin.";
-          break;
-        default:
-          mesaj = "Hata: ${e.message}";
-      }
-
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mesaj), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? "Hata oluştu"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -200,94 +197,85 @@ class _GirisKayitEkraniState extends State<GirisKayitEkrani> {
 
   Future<void> _sifreSifirla() async {
     if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen önce E-Posta adresinizi yazın!"), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen önce E-Posta adresinizi yazın!")));
       return;
     }
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text.trim());
       if (mounted) {
-        showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("E-Posta Gönderildi"), content: const Text("Şifre sıfırlama bağlantısı e-posta adresinize gönderildi."), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("TAMAM"))]));
+        showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Gönderildi"), content: const Text("Şifre sıfırlama linki e-postanıza gönderildi.")));
       }
-    } on FirebaseAuthException catch (e) {
-      String mesaj = "Hata oluştu.";
-      if (e.code == 'user-not-found') mesaj = "Bu e-posta ile kayıtlı kullanıcı bulunamadı.";
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mesaj), backgroundColor: Colors.red));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Hata oluştu")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
     return Scaffold(
-      backgroundColor: bgColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // LOGO
               Container(
                 width: 120, height: 120,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]
-                ),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
                 child: Icon(Icons.car_repair, size: 80, color: primaryColor),
               ),
-
               const SizedBox(height: 30),
               Text(girisModu ? 'Giriş Yap' : 'Hesap Oluştur', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: primaryColor)),
               const SizedBox(height: 30),
 
               if (!girisModu) ...[
-                TextField(controller: _adController, decoration: const InputDecoration(labelText: 'Ad Soyad', prefixIcon: Icon(Icons.person)), textCapitalization: TextCapitalization.words),
+                TextField(controller: _adController, decoration: const InputDecoration(labelText: 'Ad Soyad', prefixIcon: Icon(Icons.person))),
                 const SizedBox(height: 15),
               ],
-
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'E-Posta', prefixIcon: Icon(Icons.email)), keyboardType: TextInputType.emailAddress),
+              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'E-Posta', prefixIcon: Icon(Icons.email))),
               const SizedBox(height: 15),
-
               if (!girisModu) ...[
-                TextField(controller: _telController, decoration: const InputDecoration(labelText: 'Telefon Numarası', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
+                TextField(controller: _telController, decoration: const InputDecoration(labelText: 'Telefon Numarası', prefixIcon: Icon(Icons.phone))),
                 const SizedBox(height: 15),
               ],
-
-              // --- ŞİFRE ALANI ---
               TextField(
                   controller: _passwordController,
                   obscureText: !_sifreGozuksunMu,
                   decoration: InputDecoration(
                       labelText: 'Şifre',
                       prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(icon: Icon(_sifreGozuksunMu ? Icons.visibility : Icons.visibility_off, color: Colors.grey), onPressed: () { setState(() { _sifreGozuksunMu = !_sifreGozuksunMu; }); })
+                      suffixIcon: IconButton(icon: Icon(_sifreGozuksunMu ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _sifreGozuksunMu = !_sifreGozuksunMu))
                   )
               ),
-
-              // --- ŞİFRE TEKRAR ALANI (SADECE KAYITTA) ---
               if (!girisModu) ...[
                 const SizedBox(height: 15),
-                TextField(
-                  controller: _confirmPasswordController,
-                  obscureText: !_sifreGozuksunMu,
-                  decoration: const InputDecoration(
-                    labelText: 'Şifre Tekrar',
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
-                ),
+                TextField(controller: _confirmPasswordController, obscureText: !_sifreGozuksunMu, decoration: const InputDecoration(labelText: 'Şifre Tekrar', prefixIcon: Icon(Icons.lock_outline))),
               ],
+              if (girisModu) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: _sifreSifirla, child: const Text("Şifremi Unuttum?"))),
+              const SizedBox(height: 25),
 
-              if (girisModu) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: _sifreSifirla, child: Text("Şifremi Unuttum?", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)))),
-
-              if (!girisModu) const SizedBox(height: 25),
-
-              SizedBox(width: double.infinity, height: 55, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 5), onPressed: isLoading ? null : _islemYap, child: isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(girisModu ? 'GİRİŞ YAP' : 'KAYIT OL', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+              SizedBox(width: double.infinity, height: 55, child: ElevatedButton(onPressed: isLoading ? null : _islemYap, child: isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(girisModu ? 'GİRİŞ YAP' : 'KAYIT OL'))),
 
               const SizedBox(height: 20),
-              TextButton(onPressed: () { setState(() { girisModu = !girisModu; }); }, child: Text(girisModu ? 'Hesabın yok mu? Kayıt Ol' : 'Zaten hesabın var mı? Giriş Yap', style: TextStyle(color: primaryColor)))
+
+              // --- GOOGLE BUTONU VE AYIRICI ---
+              if (girisModu) ...[
+                const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text("VEYA")), Expanded(child: Divider())]),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.g_mobiledata, color: Colors.red, size: 36),
+                    label: const Text("Google ile Devam Et", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                    onPressed: isLoading ? null : _googleIleGirisYap,
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              TextButton(onPressed: () => setState(() => girisModu = !girisModu), child: Text(girisModu ? 'Hesabın yok mu? Kayıt Ol' : 'Zaten hesabın var mı? Giriş Yap'))
             ],
           ),
         ),
